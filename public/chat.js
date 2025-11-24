@@ -8,6 +8,9 @@ const codenameSetup = document.getElementById("codename-setup");
 const codenameForm = document.getElementById("codename-form");
 const codenameInput = document.getElementById("codename-input");
 
+const pinnedBar = document.getElementById("pinned-bar");
+const pinnedTextEl = document.getElementById("pinned-text");
+
 let isAdmin = false;
 
 // --- get stored username per host (no random fallback) ---
@@ -261,6 +264,19 @@ socket.on("clearHistory", () => {
   messages.innerHTML = "";
 });
 
+// pinned message updates
+socket.on("pinUpdate", ({ text, by, timestamp }) => {
+  if (!pinnedBar || !pinnedTextEl) return;
+
+  if (text && text.trim()) {
+    pinnedBar.style.display = "flex";
+    pinnedTextEl.textContent = text;
+  } else {
+    pinnedBar.style.display = "none";
+    pinnedTextEl.textContent = "";
+  }
+});
+
 // admin login status
 socket.on("adminStatus", ({ ok, message }) => {
   if (ok) {
@@ -367,7 +383,7 @@ form.addEventListener("submit", (e) => {
     return;
   }
 
-  // ----- Admin moderation: /mute, /unmute, /ban, /kick, /kickall -----
+  // ----- Admin moderation: /mute, /unmute, /ban, /kick, /kickall, /pin, /unpin -----
   const muteMatch = text.match(/^\s*\/mute\s+(.+)/i);
   if (muteMatch) {
     const target = muteMatch[1].trim();
@@ -410,6 +426,22 @@ form.addEventListener("submit", (e) => {
 
   if (/^\s*\/kickall\b/i.test(text)) {
     socket.emit("adminCommand", { action: "kickall" });
+    input.value = "";
+    return;
+  }
+
+  const pinMatch = text.match(/^\s*\/pin\s+(.+)/i);
+  if (pinMatch) {
+    const pinText = pinMatch[1].trim();
+    if (pinText) {
+      socket.emit("adminCommand", { action: "pin", target: pinText });
+    }
+    input.value = "";
+    return;
+  }
+
+  if (/^\s*\/unpin\b/i.test(text)) {
+    socket.emit("adminCommand", { action: "unpin" });
     input.value = "";
     return;
   }

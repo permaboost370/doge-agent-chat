@@ -21,19 +21,38 @@ const io = new SocketIOServer(httpServer, {
   cors: { origin: "*" }
 });
 
+// room -> Map(socketId -> username)
+const roomUsers = new Map();
+
+function updateRoomUsers(room) {
+  const usersMap = roomUsers.get(room) || new Map();
+  const users = Array.from(usersMap.values());
+  io.to(room).emit("roomUsers", {
+    users,
+    count: users.length
+  });
+}
+
 io.on("connection", (socket) => {
   console.log("New client connected", socket.id);
 
-  // client will tell us which room (subdomain) + username
   socket.on("joinRoom", ({ room, username }) => {
     socket.join(room);
     socket.data.username = username;
     socket.data.room = room;
+
+    if (!roomUsers.has(room)) {
+      roomUsers.set(room, new Map());
+    }
+    roomUsers.get(room).set(socket.id, username);
+
     console.log(`Socket ${socket.id} joined room=${room} as ${username}`);
 
     socket.to(room).emit("systemMessage", {
       text: `${username} has joined the mission.`
     });
+
+    updateRoomUsers(room);
   });
 
   socket.on("chatMessage", ({ text }) => {
@@ -48,18 +67,29 @@ io.on("connection", (socket) => {
       timestamp: Date.now()
     };
 
-    // broadcast to everyone in the room (including sender)
     io.to(room).emit("chatMessage", payload);
   });
 
   socket.on("disconnect", () => {
     const room = socket.data.room;
     const username = socket.data.username;
+
+    if (room && roomUsers.has(room)) {
+      const usersMap = roomUsers.get(room);
+      usersMap.delete(socket.id);
+      if (usersMap.size === 0) {
+        roomUsers.delete(room);
+      } else {
+        updateRoomUsers(room);
+      }
+    }
+
     if (room && username) {
       socket.to(room).emit("systemMessage", {
         text: `${username} has left the mission.`
       });
     }
+
     console.log("Client disconnected", socket.id);
   });
 });

@@ -21,8 +21,8 @@ const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: { origin: "*" },
   // Less aggressive disconnects when tabs are backgrounded
-  pingTimeout: 60000,   // 60s
-  pingInterval: 25000,  // 25s
+  pingTimeout: 60000, // 60s
+  pingInterval: 25000 // 25s
 });
 
 // ---------- OpenAI (for Agent Doge) ----------
@@ -117,7 +117,7 @@ async function synthesizeWithElevenLabs(text) {
  * roomUsers:   Map<room, Map<socketId, username>>
  * roomMutes:   Map<room, Set<socketId>>
  * roomBans:    Map<room, Set<username>>
- * roomHistory: Map<room, Array<{kind, username, text, timestamp}>>
+ * roomHistory: Map<room, Array<{kind, username, text?, mimeType?, imageBase64?, timestamp}>>
  * roomPins:    Map<room, { text, by, timestamp }>
  */
 const roomUsers = new Map();
@@ -421,6 +421,104 @@ io.on("connection", (socket) => {
       kind: "chat",
       username,
       text: payload.text,
+      timestamp: payload.timestamp
+    });
+  });
+
+  // ---------- Private DM: /dm username message ----------
+  socket.on("dmMessage", ({ target, text }) => {
+    const room = socket.data.room;
+    const fromUser = socket.data.username || "unknown";
+    const trimmedText = (text || "").trim();
+    const targetName = (target || "").trim();
+
+    if (!room || !trimmedText || !targetName) return;
+
+    const mutes = roomMutes.get(room);
+    if (mutes && mutes.has(socket.id)) {
+      socket.emit("systemMessage", {
+        text: "You are muted. Private transmissions are blocked by command."
+      });
+      return;
+    }
+
+    const usersMap = roomUsers.get(room) || new Map();
+    const targetSids = [];
+    for (const [sid, uname] of usersMap.entries()) {
+      if (uname === targetName) {
+        targetSids.push(sid);
+      }
+    }
+
+    if (targetSids.length === 0) {
+      socket.emit("systemMessage", {
+        text: `No active agent found with codename '${targetName}'.`
+      });
+      return;
+    }
+
+    const payload = {
+      from: fromUser,
+      to: targetName,
+      text: trimmedText,
+      timestamp: Date.now()
+    };
+
+    // send to target(s)
+    for (const sid of targetSids) {
+      const s = io.sockets.sockets.get(sid);
+      if (s) {
+        s.emit("dmMessage", payload);
+      }
+    }
+
+    // echo back to sender
+    socket.emit("dmMessage", payload);
+    // DMs are private, not stored in public roomHistory
+  });
+
+  // ---------- Image messages ----------
+  socket.on("imageMessage", ({ imageBase64, mimeType }) => {
+    const room = socket.data.room;
+    const username = socket.data.username || "unknown";
+
+    if (!room) return;
+
+    const base64 = (imageBase64 || "").trim();
+    const mime = (mimeType || "").trim();
+    if (!base64 || !mime) return;
+
+    // basic size guard (~2MB of base64)
+    if (base64.length > 2_000_000) {
+      socket.emit("systemMessage", {
+        text: "Image too large. Please keep it under ~2MB."
+      });
+      return;
+    }
+
+    const mutes = roomMutes.get(room);
+    if (mutes && mutes.has(socket.id)) {
+      socket.emit("systemMessage", {
+        text: "You are muted. Image transmissions are blocked by command."
+      });
+      return;
+    }
+
+    const payload = {
+      username,
+      imageBase64: base64,
+      mimeType: mime,
+      timestamp: Date.now()
+    };
+
+    io.to(room).emit("imageMessage", payload);
+
+    // store in history so reloaded users see images too
+    addHistory(room, {
+      kind: "image",
+      username,
+      imageBase64: base64,
+      mimeType: mime,
       timestamp: payload.timestamp
     });
   });

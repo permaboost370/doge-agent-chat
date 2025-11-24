@@ -18,13 +18,32 @@
       </aside>
 
       <div id="terminal">
+        <!-- Codename setup bar -->
+        <div id="codename-setup">
+          <form id="codename-form">
+            <span class="codename-label">SET CODENAME:</span>
+            <input
+              id="codename-input"
+              type="text"
+              maxlength="24"
+              autocomplete="off"
+              placeholder="e.g. muchdogeagent"
+            />
+            <button id="codename-button" type="submit">LOCK IN</button>
+          </form>
+          <div class="codename-hint">
+            Name used in lobby. You can change later with /nick newname.
+          </div>
+        </div>
+
         <div id="messages" class="messages"></div>
+
         <form id="chat-form">
           <input
             id="input"
             type="text"
             autocomplete="off"
-            placeholder="type your transmission..."
+            placeholder="set codename above to start..."
           />
         </form>
       </div>

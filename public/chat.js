@@ -27,7 +27,7 @@ socket.on("connect", () => {
   socket.emit("joinRoom", { room, username });
 });
 
-// typewriter function
+// plain text typewriter (for intro)
 function typeWriter(element, text, speed = 15, onComplete) {
   let i = 0;
   element.classList.add("typing");
@@ -40,6 +40,27 @@ function typeWriter(element, text, speed = 15, onComplete) {
     if (i >= text.length) {
       clearInterval(interval);
       element.classList.remove("typing");
+      if (typeof onComplete === "function") onComplete();
+    }
+  }, speed);
+}
+
+// HTML typewriter (for boxed messages with links)
+function typeWriterHTML(element, html, speed = 10, onComplete) {
+  let i = 0;
+  const tempDiv = document.createElement("div");
+  tempDiv.innerHTML = html;
+  const fullHTML = tempDiv.innerHTML;
+
+  const interval = setInterval(() => {
+    element.innerHTML =
+      fullHTML.slice(0, i) + "<span class='cursor'>|</span>";
+    i++;
+    messages.scrollTop = messages.scrollHeight;
+
+    if (i >= fullHTML.length) {
+      clearInterval(interval);
+      element.innerHTML = fullHTML; // final render
       if (typeof onComplete === "function") onComplete();
     }
   }, speed);
@@ -61,7 +82,7 @@ function playIntro() {
 
 playIntro();
 
-// render messages in box style
+// render messages in box style with clickable links
 function addBoxedMessage(text, who = "user", label = "") {
   const div = document.createElement("div");
   div.className = "msg " + who;
@@ -81,19 +102,26 @@ function addBoxedMessage(text, who = "user", label = "") {
   );
   const border = "+" + "-".repeat(maxLen + 2) + "+";
 
-  const boxedText =
+  // Build HTML with <br> instead of newline
+  let boxedHTML =
     border +
-    "\n" +
+    "<br>" +
     labeledLines
       .map((line) => {
         const padding = " ".repeat(maxLen - line.length);
         return "| " + line + padding + " |";
       })
-      .join("\n") +
-    "\n" +
+      .join("<br>") +
+    "<br>" +
     border;
 
-  typeWriter(div, boxedText, 10);
+  // Make URLs clickable
+  boxedHTML = boxedHTML.replace(
+    /(https?:\/\/[^\s<]+)/g,
+    '<a href="$1" target="_blank" class="chat-link">$1</a>'
+  );
+
+  typeWriterHTML(div, boxedHTML, 5);
   messages.scrollTop = messages.scrollHeight;
 }
 
@@ -137,12 +165,20 @@ form.addEventListener("submit", (e) => {
   if (!text) return;
 
   // ----- SLASH COMMANDS / FILTERS -----
-  if (text === "/x" || text === "/X") {
+  // exact commands
+  if (/^\/x$/i.test(text)) {
     text = "Official X account: https://x.com/muchdogeagent";
+  } else if (/^\/website$/i.test(text)) {
+    text = "Official website: https://dogeagent.org";
   } else {
+    // inline replacements
     text = text.replace(
       /\b\/x\b/gi,
       "https://x.com/muchdogeagent"
+    );
+    text = text.replace(
+      /\b\/website\b/gi,
+      "https://dogeagent.org"
     );
   }
 

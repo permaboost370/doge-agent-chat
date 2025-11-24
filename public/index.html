@@ -6,19 +6,30 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body>
-    <div id="terminal">
-      <div id="messages" class="messages"></div>
-      <form id="chat-form">
-        <input
-          id="input"
-          type="text"
-          autocomplete="off"
-          placeholder="type your transmission..."
-        />
-      </form>
+    <div id="app">
+      <aside id="sidebar">
+        <div class="sidebar-header">
+          <div class="room-title">DOGE LOBBY</div>
+          <div class="user-count">
+            AGENTS ONLINE: <span id="user-count">0</span>
+          </div>
+        </div>
+        <ul id="user-list"></ul>
+      </aside>
+
+      <div id="terminal">
+        <div id="messages" class="messages"></div>
+        <form id="chat-form">
+          <input
+            id="input"
+            type="text"
+            autocomplete="off"
+            placeholder="type your transmission..."
+          />
+        </form>
+      </div>
     </div>
 
-    <!-- Socket.IO client JS served by server -->
     <script src="/socket.io/socket.io.js"></script>
     <script src="/chat.js"></script>
   </body>

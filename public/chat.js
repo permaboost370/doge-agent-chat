@@ -328,21 +328,21 @@ form.addEventListener("submit", (e) => {
   if (!text) return;
 
   // ----- /clearall (admin: clears server history + everyone’s screen) -----
-  if (/^\/clearall$/i.test(text)) {
+  if (/^\s*\/clearall\b/i.test(text)) {
     socket.emit("adminCommand", { action: "clearHistory" });
     input.value = "";
     return;
   }
 
   // ----- /clear (local only: clears your screen) -----
-  if (/^\/clear$/i.test(text)) {
+  if (/^\s*\/clear\b/i.test(text)) {
     messages.innerHTML = "";
     input.value = "";
     return;
   }
 
   // ----- /admin secret -----
-  const adminMatch = text.match(/^\/admin\s+(.+)/i);
+  const adminMatch = text.match(/^\s*\/admin\s+(.+)/i);
   if (adminMatch) {
     const pwd = adminMatch[1].trim();
     if (pwd) {
@@ -353,7 +353,7 @@ form.addEventListener("submit", (e) => {
   }
 
   // ----- /nick newname -----
-  const nickMatch = text.match(/^\/nick\s+(.+)/i);
+  const nickMatch = text.match(/^\s*\/nick\s+(.+)/i);
   if (nickMatch) {
     const rawNewName = nickMatch[1].trim();
     if (rawNewName) {
@@ -368,7 +368,7 @@ form.addEventListener("submit", (e) => {
   }
 
   // ----- Admin moderation: /mute, /unmute, /ban, /kick, /kickall -----
-  const muteMatch = text.match(/^\/mute\s+(.+)/i);
+  const muteMatch = text.match(/^\s*\/mute\s+(.+)/i);
   if (muteMatch) {
     const target = muteMatch[1].trim();
     if (target) {
@@ -378,7 +378,7 @@ form.addEventListener("submit", (e) => {
     return;
   }
 
-  const unmuteMatch = text.match(/^\/unmute\s+(.+)/i);
+  const unmuteMatch = text.match(/^\s*\/unmute\s+(.+)/i);
   if (unmuteMatch) {
     const target = unmuteMatch[1].trim();
     if (target) {
@@ -388,7 +388,7 @@ form.addEventListener("submit", (e) => {
     return;
   }
 
-  const banMatch = text.match(/^\/ban\s+(.+)/i);
+  const banMatch = text.match(/^\s*\/ban\s+(.+)/i);
   if (banMatch) {
     const target = banMatch[1].trim();
     if (target) {
@@ -398,7 +398,7 @@ form.addEventListener("submit", (e) => {
     return;
   }
 
-  const kickMatch = text.match(/^\/kick\s+(.+)/i);
+  const kickMatch = text.match(/^\s*\/kick\s+(.+)/i);
   if (kickMatch) {
     const target = kickMatch[1].trim();
     if (target) {
@@ -408,14 +408,14 @@ form.addEventListener("submit", (e) => {
     return;
   }
 
-  if (/^\/kickall$/i.test(text)) {
+  if (/^\s*\/kickall\b/i.test(text)) {
     socket.emit("adminCommand", { action: "kickall" });
     input.value = "";
     return;
   }
 
   // ----- /agent question -----
-  const agentMatch = text.match(/^\/agent\s+(.+)/i);
+  const agentMatch = text.match(/^\s*\/agent\s+(.+)/i);
   if (agentMatch) {
     const question = agentMatch[1].trim();
     if (question) {
@@ -429,9 +429,9 @@ form.addEventListener("submit", (e) => {
   }
 
   // ----- SLASH COMMANDS / FILTERS (links) -----
-  if (/^\/x$/i.test(text)) {
+  if (/^\s*\/x\b/i.test(text)) {
     text = "Official X account: https://x.com/muchdogeagent";
-  } else if (/^\/website$/i.test(text)) {
+  } else if (/^\s*\/website\b/i.test(text)) {
     text = "Official website: https://dogeagent.org";
   } else {
     // inline replacements

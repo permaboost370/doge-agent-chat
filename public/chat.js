@@ -101,10 +101,10 @@ function typeWriterHTML(element, html, speed = 10, onComplete) {
 // intro text BUILT USING CURRENT USERNAME
 function playIntro() {
   const introText =
-    `C:\\DOGEOS\\LOBBY>\n` +
+    "C:\\\\DOGEOS\\\\LOBBY>\n" +
     `> ASSIGNED CODENAME: ${username}\n` +
-    `> ALL TRANSMISSIONS ARE PUBLIC IN THIS ROOM.\n` +
-    `> TYPE TO BROADCAST TO OTHER AGENTS.\n`;
+    "> ALL TRANSMISSIONS ARE PUBLIC IN THIS ROOM.\n" +
+    "> TYPE TO BROADCAST TO OTHER AGENTS.\n";
 
   const div = document.createElement("div");
   div.className = "msg system typing";
@@ -129,7 +129,7 @@ function base64ToBlob(base64, mimeType) {
 function playReplyAudio(base64, format = "mp3") {
   if (!base64) return;
 
-  const mime = format === "mp3" ? "audio/mpeg" : `audio/${format}`;
+  const mime = format === "mp3" ? "audio/mpeg" : "audio/" + format;
   const blob = base64ToBlob(base64, mime);
   if (!blob) return;
 
@@ -146,14 +146,15 @@ function wrapTextLines(text, maxWidth) {
   const rawLines = text.split("\n");
   const wrapped = [];
 
-  for (const rawLine of rawLines) {
-    const line = rawLine.trim();
+  for (let r = 0; r < rawLines.length; r++) {
+    const line = rawLines[r].trim();
     if (!line) continue;
 
     const words = line.split(/\s+/);
     let current = "";
 
-    for (const word of words) {
+    for (let w = 0; w < words.length; w++) {
+      const word = words[w];
       if (!current.length) {
         current = word;
       } else if ((current + " " + word).length <= maxWidth) {
@@ -173,7 +174,10 @@ function wrapTextLines(text, maxWidth) {
 }
 
 // render messages in box style with clickable links
-function addBoxedMessage(text, who = "user", label = "") {
+function addBoxedMessage(text, who, label) {
+  if (who === undefined) who = "user";
+  if (label === undefined) label = "";
+
   const div = document.createElement("div");
   div.className = "msg " + who;
   messages.appendChild(div);
@@ -181,26 +185,31 @@ function addBoxedMessage(text, who = "user", label = "") {
   const MAX_CONTENT_WIDTH = 70;
   const lines = wrapTextLines(text, MAX_CONTENT_WIDTH);
 
-  const prefix = label ? `${label}> ` : "";
-  const labeledLines = lines.map((l) => prefix + l);
+  const prefix = label ? label + "> " : "";
+  const labeledLines = lines.map(function (l) {
+    return prefix + l;
+  });
 
-  const maxLen = labeledLines.reduce(
-    (max, line) => Math.max(max, line.length),
-    0
-  );
-  const border = "+" + "-".repeat(maxLen + 2) + "+";
+  let maxLen = 0;
+  for (let i = 0; i < labeledLines.length; i++) {
+    if (labeledLines[i].length > maxLen) {
+      maxLen = labeledLines[i].length;
+    }
+  }
 
-  let boxedHTML =
-    border +
-    "<br>" +
-    labeledLines
-      .map((line) => {
-        const padding = " ".repeat(maxLen - line.length);
-        return "| " + line + padding + " |";
-      })
-      .join("<br>") +
-    "<br>" +
-    border;
+  const border = "+" + Array(maxLen + 3).join("-") + "+";
+
+  let boxedHTML = border + "<br>";
+  for (let i = 0; i < labeledLines.length; i++) {
+    const line = labeledLines[i];
+    const paddingLen = maxLen - line.length;
+    const padding = Array(paddingLen + 1).join(" ");
+    boxedHTML += "| " + line + padding + " |";
+    if (i !== labeledLines.length - 1) {
+      boxedHTML += "<br>";
+    }
+  }
+  boxedHTML += "<br>" + border;
 
   // clickable URLs
   boxedHTML = boxedHTML.replace(
@@ -213,32 +222,38 @@ function addBoxedMessage(text, who = "user", label = "") {
 }
 
 // ---- sidebar updates ----
-socket.on("roomUsers", ({ users, count }) => {
+socket.on("roomUsers", function (payload) {
+  const users = payload.users || [];
+  const count = payload.count || 0;
+
   if (userCountEl) {
-    userCountEl.textContent = count.toString();
+    userCountEl.textContent = String(count);
   }
   if (!userListEl) return;
 
   userListEl.innerHTML = "";
 
-  users.forEach((u) => {
+  for (let i = 0; i < users.length; i++) {
+    const u = users[i];
     const li = document.createElement("li");
-    li.textContent = u === username ? `${u} (you)` : u;
+    li.textContent = u === username ? u + " (you)" : u;
     if (u === username) {
       li.classList.add("user-me");
     }
     userListEl.appendChild(li);
-  });
+  }
 });
 
 // ---- history replay from server ----
-socket.on("history", ({ entries }) => {
+socket.on("history", function (payload) {
   if (historyLoaded) return; // avoid duplicate history on reconnect
   historyLoaded = true;
 
-  if (!Array.isArray(entries)) return;
+  const entries = payload.entries;
+  if (!entries || !entries.length) return;
 
-  for (const entry of entries) {
+  for (let i = 0; i < entries.length; i++) {
+    const entry = entries[i];
     const kind = entry.kind;
     const fromUser = entry.username;
     const text = entry.text || "";
@@ -260,15 +275,16 @@ socket.on("history", ({ entries }) => {
 });
 
 // clear history event from server (admin /clearall)
-socket.on("clearHistory", () => {
+socket.on("clearHistory", function () {
   messages.innerHTML = "";
 });
 
 // pinned message updates
-socket.on("pinUpdate", ({ text, by, timestamp }) => {
+socket.on("pinUpdate", function (payload) {
   if (!pinnedBar || !pinnedTextEl) return;
 
-  if (text && text.trim()) {
+  const text = payload.text;
+  if (text && String(text).trim().length > 0) {
     pinnedBar.style.display = "flex";
     pinnedTextEl.textContent = text;
   } else {
@@ -278,20 +294,26 @@ socket.on("pinUpdate", ({ text, by, timestamp }) => {
 });
 
 // admin login status
-socket.on("adminStatus", ({ ok, message }) => {
+socket.on("adminStatus", function (payload) {
+  const ok = payload.ok;
+  const message = payload.message || "Admin status changed.";
   if (ok) {
     isAdmin = true;
   }
-  addBoxedMessage(message || "Admin status changed.", "system", "SYS");
+  addBoxedMessage(message, "system", "SYS");
 });
 
 // system messages
-socket.on("systemMessage", ({ text }) => {
+socket.on("systemMessage", function (payload) {
+  const text = payload.text || "";
   addBoxedMessage(text, "system", "SYS");
 });
 
 // incoming chat messages from humans
-socket.on("chatMessage", ({ username: fromUser, text, timestamp }) => {
+socket.on("chatMessage", function (payload) {
+  const fromUser = payload.username;
+  const text = payload.text || "";
+
   if (fromUser === username) {
     addBoxedMessage(text, "user", "YOU");
   } else {
@@ -300,19 +322,21 @@ socket.on("chatMessage", ({ username: fromUser, text, timestamp }) => {
 });
 
 // Agent Doge messages
-socket.on(
-  "agentMessage",
-  ({ username: agentName, text, audioBase64, audioFormat }) => {
-    addBoxedMessage(text, "bot", agentName || "DogeAgent067");
-    if (audioBase64) {
-      playReplyAudio(audioBase64, audioFormat || "mp3");
-    }
+socket.on("agentMessage", function (payload) {
+  const agentName = payload.username || "DogeAgent067";
+  const text = payload.text || "";
+  const audioBase64 = payload.audioBase64 || null;
+  const audioFormat = payload.audioFormat || "mp3";
+
+  addBoxedMessage(text, "bot", agentName);
+  if (audioBase64) {
+    playReplyAudio(audioBase64, audioFormat);
   }
-);
+});
 
 // ---- codename form logic ----
 if (codenameForm) {
-  codenameForm.addEventListener("submit", (e) => {
+  codenameForm.addEventListener("submit", function (e) {
     e.preventDefault();
     let val = (codenameInput.value || "").trim();
     if (!val) return;
@@ -321,7 +345,7 @@ if (codenameForm) {
     username = safe;
 
     const host = window.location.host;
-    localStorage.setItem(`dogeUsername_${host}`, safe);
+    localStorage.setItem("dogeUsername_" + host, safe);
 
     if (codenameSetup) codenameSetup.style.display = "none";
     input.disabled = false;
@@ -333,7 +357,7 @@ if (codenameForm) {
 }
 
 // ---- main chat form ----
-form.addEventListener("submit", (e) => {
+form.addEventListener("submit", function (e) {
   e.preventDefault();
   if (!username) {
     // codename not set yet
@@ -358,9 +382,9 @@ form.addEventListener("submit", (e) => {
   }
 
   // ----- /admin secret -----
-  const adminMatch = text.match(/^\s*\/admin\s+(.+)/i);
-  if (adminMatch) {
-    const pwd = adminMatch[1].trim();
+  let match = text.match(/^\s*\/admin\s+(.+)/i);
+  if (match) {
+    const pwd = match[1].trim();
     if (pwd) {
       socket.emit("adminLogin", { password: pwd });
     }
@@ -369,13 +393,13 @@ form.addEventListener("submit", (e) => {
   }
 
   // ----- /nick newname -----
-  const nickMatch = text.match(/^\s*\/nick\s+(.+)/i);
-  if (nickMatch) {
-    const rawNewName = nickMatch[1].trim();
+  match = text.match(/^\s*\/nick\s+(.+)/i);
+  if (match) {
+    const rawNewName = match[1].trim();
     if (rawNewName) {
       const safe = rawNewName.replace(/\s+/g, "_").slice(0, 24);
       const host = window.location.host;
-      localStorage.setItem(`dogeUsername_${host}`, safe);
+      localStorage.setItem("dogeUsername_" + host, safe);
       username = safe;
       socket.emit("changeNick", { newName: safe });
     }
@@ -384,41 +408,41 @@ form.addEventListener("submit", (e) => {
   }
 
   // ----- Admin moderation: /mute, /unmute, /ban, /kick, /kickall, /pin, /unpin -----
-  const muteMatch = text.match(/^\s*\/mute\s+(.+)/i);
-  if (muteMatch) {
-    const target = muteMatch[1].trim();
+  match = text.match(/^\s*\/mute\s+(.+)/i);
+  if (match) {
+    const target = match[1].trim();
     if (target) {
-      socket.emit("adminCommand", { action: "mute", target });
+      socket.emit("adminCommand", { action: "mute", target: target });
     }
     input.value = "";
     return;
   }
 
-  const unmuteMatch = text.match(/^\s*\/unmute\s+(.+)/i);
-  if (unmuteMatch) {
-    const target = unmuteMatch[1].trim();
+  match = text.match(/^\s*\/unmute\s+(.+)/i);
+  if (match) {
+    const target = match[1].trim();
     if (target) {
-      socket.emit("adminCommand", { action: "unmute", target });
+      socket.emit("adminCommand", { action: "unmute", target: target });
     }
     input.value = "";
     return;
   }
 
-  const banMatch = text.match(/^\s*\/ban\s+(.+)/i);
-  if (banMatch) {
-    const target = banMatch[1].trim();
+  match = text.match(/^\s*\/ban\s+(.+)/i);
+  if (match) {
+    const target = match[1].trim();
     if (target) {
-      socket.emit("adminCommand", { action: "ban", target });
+      socket.emit("adminCommand", { action: "ban", target: target });
     }
     input.value = "";
     return;
   }
 
-  const kickMatch = text.match(/^\s*\/kick\s+(.+)/i);
-  if (kickMatch) {
-    const target = kickMatch[1].trim();
+  match = text.match(/^\s*\/kick\s+(.+)/i);
+  if (match) {
+    const target = match[1].trim();
     if (target) {
-      socket.emit("adminCommand", { action: "kick", target });
+      socket.emit("adminCommand", { action: "kick", target: target });
     }
     input.value = "";
     return;
@@ -430,9 +454,9 @@ form.addEventListener("submit", (e) => {
     return;
   }
 
-  const pinMatch = text.match(/^\s*\/pin\s+(.+)/i);
-  if (pinMatch) {
-    const pinText = pinMatch[1].trim();
+  match = text.match(/^\s*\/pin\s+(.+)/i);
+  if (match) {
+    const pinText = match[1].trim();
     if (pinText) {
       socket.emit("adminCommand", { action: "pin", target: pinText });
     }
@@ -447,14 +471,14 @@ form.addEventListener("submit", (e) => {
   }
 
   // ----- /agent question -----
-  const agentMatch = text.match(/^\s*\/agent\s+(.+)/i);
-  if (agentMatch) {
-    const question = agentMatch[1].trim();
+  match = text.match(/^\s*\/agent\s+(.+)/i);
+  if (match) {
+    const question = match[1].trim();
     if (question) {
       socket.emit("chatMessage", {
-        text: `Agent query: ${question}`
+        text: "Agent query: " + question
       });
-      socket.emit("agentRequest", { question });
+      socket.emit("agentRequest", { question: question });
     }
     input.value = "";
     return;
@@ -478,6 +502,6 @@ form.addEventListener("submit", (e) => {
   }
 
   // send normal message
-  socket.emit("chatMessage", { text });
+  socket.emit("chatMessage", { text: text });
   input.value = "";
 });

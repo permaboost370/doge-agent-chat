@@ -113,16 +113,46 @@ function playReplyAudio(base64, format = "mp3") {
   });
 }
 
+// --- helper: word-wrap text into lines of max width ---
+function wrapTextLines(text, maxWidth) {
+  const rawLines = text.split("\n");
+  const wrapped = [];
+
+  for (const rawLine of rawLines) {
+    const line = rawLine.trim();
+    if (!line) continue;
+
+    const words = line.split(/\s+/);
+    let current = "";
+
+    for (const word of words) {
+      if (!current.length) {
+        current = word;
+      } else if ((current + " " + word).length <= maxWidth) {
+        current += " " + word;
+      } else {
+        wrapped.push(current);
+        current = word;
+      }
+    }
+
+    if (current.length) {
+      wrapped.push(current);
+    }
+  }
+
+  return wrapped;
+}
+
 // render messages in box style with clickable links
 function addBoxedMessage(text, who = "user", label = "") {
   const div = document.createElement("div");
   div.className = "msg " + who;
   messages.appendChild(div);
 
-  const lines = text
-    .split("\n")
-    .map((l) => l.trim())
-    .filter((l) => l.length > 0);
+  // wrap message into reasonable width before boxing
+  const MAX_CONTENT_WIDTH = 70; // characters per line of content
+  const lines = wrapTextLines(text, MAX_CONTENT_WIDTH);
 
   const prefix = label ? `${label}> ` : "";
   const labeledLines = lines.map((l) => prefix + l);

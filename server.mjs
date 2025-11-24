@@ -53,8 +53,7 @@ function getEnvNumber(name, fallback) {
 
 async function synthesizeWithElevenLabs(text) {
   if (!ELEVENLABS_API_KEY || !ELEVENLABS_VOICE_ID) {
-    // TTS not configured, just skip
-    return null;
+    return null; // TTS not configured
   }
 
   const stability = getEnvNumber("ELEVENLABS_STABILITY", 0.75);
@@ -110,11 +109,24 @@ async function synthesizeWithElevenLabs(text) {
   return buffer.toString("base64");
 }
 
-// ---------- Room user tracking ----------
+// ---------- Room user / mute / ban tracking ----------
 /**
  * roomUsers: Map<room, Map<socketId, username>>
+ * roomMutes: Map<room, Set<socketId>>
+ * roomBans:  Map<room, Set<username>>
  */
 const roomUsers = new Map();
+const roomMutes = new Map();
+const roomBans = new Map();
+
+function getRoomSet(map, room) {
+  let set = map.get(room);
+  if (!set) {
+    set = new Set();
+    map.set(room, set);
+  }
+  return set;
+}
 
 function updateRoomUsers(room) {
   const usersMap = roomUsers.get(room) || new Map();
@@ -125,14 +137,28 @@ function updateRoomUsers(room) {
   });
 }
 
+// ---------- Admin config ----------
+const ADMIN_SECRET = process.env.ADMIN_SECRET || null;
+
 // ---------- Socket.IO events ----------
 io.on("connection", (socket) => {
   console.log("New client connected", socket.id);
 
   socket.on("joinRoom", ({ room, username }) => {
+    // Check ban list first
+    const bans = roomBans.get(room);
+    if (bans && bans.has(username)) {
+      socket.emit("systemMessage", {
+        text: "Access denied. You are banned from this room."
+      });
+      socket.disconnect(true);
+      return;
+    }
+
     socket.join(room);
     socket.data.username = username;
     socket.data.room = room;
+    socket.data.isAdmin = false;
 
     if (!roomUsers.has(room)) {
       roomUsers.set(room, new Map());
@@ -148,6 +174,116 @@ io.on("connection", (socket) => {
     updateRoomUsers(room);
   });
 
+  // Admin login: /admin password
+  socket.on("adminLogin", ({ password }) => {
+    if (!ADMIN_SECRET) {
+      socket.emit("adminStatus", {
+        ok: false,
+        message: "Admin mode not configured."
+      });
+      return;
+    }
+
+    if (password === ADMIN_SECRET) {
+      socket.data.isAdmin = true;
+      socket.emit("adminStatus", {
+        ok: true,
+        message: "Admin privileges granted."
+      });
+    } else {
+      socket.emit("adminStatus", {
+        ok: false,
+        message: "Invalid admin code."
+      });
+    }
+  });
+
+  // Admin actions: mute / unmute / ban
+  socket.on("adminCommand", ({ action, target }) => {
+    const room = socket.data.room;
+    if (!room || !socket.data.isAdmin) {
+      socket.emit("systemMessage", {
+        text: "Admin command rejected. Access not granted."
+      });
+      return;
+    }
+
+    const targetName = (target || "").trim();
+    if (!targetName) return;
+
+    const usersMap = roomUsers.get(room) || new Map();
+
+    switch (action) {
+      case "mute": {
+        const mutes = getRoomSet(roomMutes, room);
+        // mute all sockets with that username in this room
+        for (const [sid, uname] of usersMap.entries()) {
+          if (uname === targetName) {
+            mutes.add(sid);
+            const s = io.sockets.sockets.get(sid);
+            if (s) {
+              s.emit("systemMessage", {
+                text: "You have been muted by command."
+              });
+            }
+          }
+        }
+        io.to(room).emit("systemMessage", {
+          text: `${targetName} has been muted by command.`
+        });
+        break;
+      }
+      case "unmute": {
+        const mutes = roomMutes.get(room);
+        if (mutes) {
+          for (const [sid, uname] of usersMap.entries()) {
+            if (uname === targetName) {
+              mutes.delete(sid);
+              const s = io.sockets.sockets.get(sid);
+              if (s) {
+                s.emit("systemMessage", {
+                  text: "You have been unmuted by command."
+                });
+              }
+            }
+          }
+        }
+        io.to(room).emit("systemMessage", {
+          text: `${targetName} has been unmuted.`
+        });
+        break;
+      }
+      case "ban": {
+        const bans = getRoomSet(roomBans, room);
+        bans.add(targetName);
+
+        // Disconnect all sockets with that username in this room
+        for (const [sid, uname] of usersMap.entries()) {
+          if (uname === targetName) {
+            const s = io.sockets.sockets.get(sid);
+            if (s) {
+              s.emit("systemMessage", {
+                text: "You have been banned from this room."
+              });
+              s.disconnect(true);
+            }
+          }
+        }
+
+        io.to(room).emit("systemMessage", {
+          text: `${targetName} has been banned from this room.`
+        });
+        break;
+      }
+      default: {
+        socket.emit("systemMessage", {
+          text: "Unknown admin action."
+        });
+        break;
+      }
+    }
+  });
+
   // Change nickname: /nick newname
   socket.on("changeNick", ({ newName }) => {
     const room = socket.data.room;
@@ -157,7 +293,6 @@ io.on("connection", (socket) => {
     const trimmed = (newName || "").trim();
     if (!trimmed) return;
 
-    // sanitize: no crazy long names or weird whitespace
     const safe = trimmed.replace(/\s+/g, "_").slice(0, 24);
 
     socket.data.username = safe;
@@ -174,12 +309,20 @@ io.on("connection", (socket) => {
     updateRoomUsers(room);
   });
 
-  // Normal chat messages
+  // Normal chat messages (check mute)
   socket.on("chatMessage", ({ text }) => {
     const room = socket.data.room;
     const username = socket.data.username || "unknown";
 
     if (!room || !text?.trim()) return;
+
+    const mutes = roomMutes.get(room);
+    if (mutes && mutes.has(socket.id)) {
+      socket.emit("systemMessage", {
+        text: "You are muted. Your transmissions are blocked by command."
+      });
+      return;
+    }
 
     const payload = {
       username,
@@ -226,7 +369,6 @@ io.on("connection", (socket) => {
         completion.choices?.[0]?.message?.content?.trim() ||
         "such silence, much empty";
 
-      // optional TTS
       let audioBase64 = null;
       let audioFormat = "mp3";
       try {

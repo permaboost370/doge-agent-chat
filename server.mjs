@@ -19,7 +19,10 @@ app.use(express.static(path.join(__dirname, "public")));
 // ---------- HTTP server + Socket.IO ----------
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
-  cors: { origin: "*" }
+  cors: { origin: "*" },
+  // Make disconnects less aggressive when tab is backgrounded / mobile sleeps
+  pingTimeout: 60000,   // 60s to consider the client dead
+  pingInterval: 25000,  // send pings every 25s
 });
 
 // ---------- OpenAI (for Agent Doge) ----------

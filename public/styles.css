@@ -18,7 +18,7 @@ body {
 #app {
   width: 100%;
   max-width: 1000px;
-  height: 92vh;              /* was 80vh – more vertical space now */
+  height: 92vh;              /* tall so you see more messages */
   display: flex;
   border: 2px solid #00ff00;
   background: #000;
@@ -28,7 +28,7 @@ body {
 #sidebar {
   width: 220px;
   border-right: 2px solid #00ff00;
-  padding: 8px;              /* slightly tighter padding */
+  padding: 8px;
   display: flex;
   flex-direction: column;
 }
@@ -69,9 +69,7 @@ body {
 /* Terminal / chat area */
 #terminal {
   flex: 1;
-  padding: 8px;              /* slightly less padding */
-  display: flex;
-  flex-direction: vertical;
+  padding: 8px;
   display: flex;
   flex-direction: column;
 }
@@ -81,12 +79,12 @@ body {
   overflow-y: auto;
   white-space: pre-wrap;
   padding-right: 4px;
-  font-size: 13px;           /* a bit smaller so more lines fit */
+  font-size: 13px;           /* slightly smaller to fit more lines */
   line-height: 1.15;         /* tighter line spacing */
 }
 
 .msg {
-  margin-bottom: 4px;        /* was 8px – more compact */
+  margin-bottom: 4px;        /* compact vertical spacing */
 }
 
 .msg.user {
@@ -101,8 +99,13 @@ body {
   color: #888888;
 }
 
-/* blinking cursor effect for typewriter */
+/* blinking cursor for typewriter */
 .typing {
+  border-right: 2px solid #00ff00;
+  animation: blink 0.8s steps(1) infinite;
+}
+
+.cursor {
   border-right: 2px solid #00ff00;
   animation: blink 0.8s steps(1) infinite;
 }
@@ -136,6 +139,12 @@ body {
 
 #input::placeholder {
   color: #007700;
+}
+
+/* clickable links in chat */
+.chat-link {
+  color: #00ff00;
+  text-decoration: underline;
 }
 
 /* Responsive: stack on very small screens */

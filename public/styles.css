@@ -18,7 +18,7 @@ body {
 #app {
   width: 100%;
   max-width: 1000px;
-  height: 92vh;              /* tall so you see more messages */
+  height: 92vh; /* tall so you see more messages */
   display: flex;
   border: 2px solid #00ff00;
   background: #000;
@@ -158,12 +158,12 @@ body {
   overflow-y: auto;
   white-space: pre-wrap;
   padding-right: 4px;
-  font-size: 13px;           /* slightly smaller to fit more lines */
-  line-height: 1.15;         /* tighter line spacing */
+  font-size: 13px;      /* slightly smaller to fit more lines */
+  line-height: 1.15;    /* tighter line spacing */
 }
 
 .msg {
-  margin-bottom: 4px;        /* compact vertical spacing */
+  margin-bottom: 4px;   /* compact vertical spacing */
 }
 
 .msg.user {
@@ -176,6 +176,11 @@ body {
 
 .msg.system {
   color: #888888;
+}
+
+/* Private DM (overlays extra class) */
+.msg.dm {
+  color: #ff00ff;
 }
 
 /* blinking cursor for typewriter */
@@ -201,12 +206,19 @@ body {
   }
 }
 
+/* Chat form row: input + image button */
 #chat-form {
   margin-top: 6px;
 }
 
+#input-row {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+}
+
 #input {
-  width: 100%;
+  flex: 1;
   padding: 6px;
   background: #000;
   border: 1px solid #00ff00;
@@ -220,10 +232,29 @@ body {
   color: #007700;
 }
 
+#image-input {
+  width: 120px;
+  font-size: 11px;
+  color: #00ff00;
+  background: #000;
+  border: 1px solid #00ff00;
+  font-family: inherit;
+  cursor: pointer;
+}
+
 /* clickable links in chat */
 .chat-link {
   color: #00ff00;
   text-decoration: underline;
+}
+
+/* Chat images */
+.chat-image {
+  max-width: 100%;
+  max-height: 240px;
+  display: block;
+  margin-top: 2px;
+  border: 1px solid #00ff00;
 }
 
 /* Responsive: stack on very small screens */

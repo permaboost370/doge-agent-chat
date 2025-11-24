@@ -37,20 +37,23 @@ if (username) {
 
 // --- socket.io connection ---
 const socket = io();
-let socketConnected = false;
-let hasJoined = false;
+let introShown = false;
+let historyLoaded = false;
 
-function tryJoin() {
-  if (socketConnected && username && !hasJoined) {
-    hasJoined = true;
+// try to join room whenever we have a username and a live socket
+function joinIfReady() {
+  if (socket.connected && username) {
     socket.emit("joinRoom", { room, username });
-    playIntro();
+    if (!introShown) {
+      playIntro();
+      introShown = true;
+    }
   }
 }
 
 socket.on("connect", () => {
-  socketConnected = true;
-  tryJoin();
+  console.log("Socket connected", socket.id);
+  joinIfReady();
 });
 
 // plain text typewriter (intro)
@@ -227,6 +230,9 @@ socket.on("roomUsers", ({ users, count }) => {
 
 // ---- history replay from server ----
 socket.on("history", ({ entries }) => {
+  if (historyLoaded) return; // avoid duplicate history on reconnect
+  historyLoaded = true;
+
   if (!Array.isArray(entries)) return;
 
   for (const entry of entries) {
@@ -306,7 +312,7 @@ if (codenameForm) {
     input.placeholder = "type your transmission...";
 
     codenameInput.value = "";
-    tryJoin();
+    joinIfReady();
   });
 }
 

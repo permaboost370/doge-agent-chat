@@ -4,29 +4,53 @@ const messages = document.getElementById("messages");
 const userListEl = document.getElementById("user-list");
 const userCountEl = document.getElementById("user-count");
 
+const codenameSetup = document.getElementById("codename-setup");
+const codenameForm = document.getElementById("codename-form");
+const codenameInput = document.getElementById("codename-input");
+
 let isAdmin = false;
 
-// --- generate / remember username per host ---
-function getUsernameForHost() {
+// --- get stored username per host (no random fallback) ---
+function getStoredUsername() {
   const host = window.location.host;
   const key = `dogeUsername_${host}`;
-  let username = localStorage.getItem(key);
-  if (!username) {
-    const rand = Math.floor(Math.random() * 900) + 100; // 100-999
-    username = `muchdogeagent${rand}`;
-    localStorage.setItem(key, username);
-  }
-  return username;
+  const value = localStorage.getItem(key);
+  if (!value) return null;
+  const trimmed = value.trim();
+  return trimmed.length ? trimmed : null;
 }
 
-let username = getUsernameForHost();
+let username = getStoredUsername();
 const room = window.location.host;
+
+if (username) {
+  // already known user
+  if (codenameSetup) codenameSetup.style.display = "none";
+  input.disabled = false;
+  input.placeholder = "type your transmission...";
+} else {
+  // new user must set codename
+  if (codenameSetup) codenameSetup.style.display = "block";
+  input.disabled = true;
+  input.placeholder = "set codename above to start...";
+}
 
 // --- socket.io connection ---
 const socket = io();
+let socketConnected = false;
+let hasJoined = false;
+
+function tryJoin() {
+  if (socketConnected && username && !hasJoined) {
+    hasJoined = true;
+    socket.emit("joinRoom", { room, username });
+    playIntro();
+  }
+}
 
 socket.on("connect", () => {
-  socket.emit("joinRoom", { room, username });
+  socketConnected = true;
+  tryJoin();
 });
 
 // plain text typewriter (intro)
@@ -68,21 +92,19 @@ function typeWriterHTML(element, html, speed = 10, onComplete) {
   }, speed);
 }
 
-// intro text
-const introText =
-  `C:\\DOGEOS\\LOBBY>\n` +
-  `> ASSIGNED CODENAME: ${username}\n` +
-  `> ALL TRANSMISSIONS ARE PUBLIC IN THIS ROOM.\n` +
-  `> TYPE TO BROADCAST TO OTHER AGENTS.\n`;
-
+// intro text BUILT USING CURRENT USERNAME
 function playIntro() {
+  const introText =
+    `C:\\DOGEOS\\LOBBY>\n` +
+    `> ASSIGNED CODENAME: ${username}\n` +
+    `> ALL TRANSMISSIONS ARE PUBLIC IN THIS ROOM.\n` +
+    `> TYPE TO BROADCAST TO OTHER AGENTS.\n`;
+
   const div = document.createElement("div");
   div.className = "msg system typing";
   messages.appendChild(div);
   typeWriter(div, introText, 20);
 }
-
-playIntro();
 
 // AUDIO HELPERS for Agent Doge voice
 function base64ToBlob(base64, mimeType) {
@@ -207,7 +229,6 @@ socket.on("roomUsers", ({ users, count }) => {
 socket.on("history", ({ entries }) => {
   if (!Array.isArray(entries)) return;
 
-  // We don't clear current messages, we just append history after intro
   for (const entry of entries) {
     const kind = entry.kind;
     const fromUser = entry.username;
@@ -242,7 +263,7 @@ socket.on("adminStatus", ({ ok, message }) => {
   addBoxedMessage(message || "Admin status changed.", "system", "SYS");
 });
 
-// system messages (join/leave/nick change etc.)
+// system messages
 socket.on("systemMessage", ({ text }) => {
   addBoxedMessage(text, "system", "SYS");
 });
@@ -267,9 +288,36 @@ socket.on(
   }
 );
 
-// sending messages
+// ---- codename form logic ----
+if (codenameForm) {
+  codenameForm.addEventListener("submit", (e) => {
+    e.preventDefault();
+    let val = (codenameInput.value || "").trim();
+    if (!val) return;
+
+    let safe = val.replace(/\s+/g, "_").slice(0, 24);
+    username = safe;
+
+    const host = window.location.host;
+    localStorage.setItem(`dogeUsername_${host}`, safe);
+
+    if (codenameSetup) codenameSetup.style.display = "none";
+    input.disabled = false;
+    input.placeholder = "type your transmission...";
+
+    codenameInput.value = "";
+    tryJoin();
+  });
+}
+
+// ---- main chat form ----
 form.addEventListener("submit", (e) => {
   e.preventDefault();
+  if (!username) {
+    // should not happen if UI used properly
+    return;
+  }
+
   let text = input.value.trim();
   if (!text) return;
 

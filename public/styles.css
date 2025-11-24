@@ -74,6 +74,59 @@ body {
   flex-direction: column;
 }
 
+/* Codename setup bar */
+#codename-setup {
+  margin-bottom: 6px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid #00ff00;
+}
+
+#codename-form {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.codename-label {
+  white-space: nowrap;
+}
+
+#codename-input {
+  flex: 1;
+  padding: 4px;
+  background: #000;
+  border: 1px solid #00ff00;
+  color: #00ff00;
+  font-family: inherit;
+  font-size: 12px;
+  outline: none;
+}
+
+#codename-input::placeholder {
+  color: #007700;
+}
+
+#codename-button {
+  padding: 4px 8px;
+  background: #000;
+  border: 1px solid #00ff00;
+  color: #00ff00;
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+#codename-button:hover {
+  background: #001900;
+}
+
+.codename-hint {
+  margin-top: 3px;
+  font-size: 10px;
+  color: #007700;
+}
+
 .messages {
   flex: 1;
   overflow-y: auto;

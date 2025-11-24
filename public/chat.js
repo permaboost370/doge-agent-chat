@@ -320,7 +320,7 @@ if (codenameForm) {
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   if (!username) {
-    // should not happen if UI used properly
+    // codename not set yet
     return;
   }
 
@@ -367,7 +367,7 @@ form.addEventListener("submit", (e) => {
     return;
   }
 
-  // ----- Admin moderation: /mute, /unmute, /ban -----
+  // ----- Admin moderation: /mute, /unmute, /ban, /kick, /kickall -----
   const muteMatch = text.match(/^\/mute\s+(.+)/i);
   if (muteMatch) {
     const target = muteMatch[1].trim();
@@ -394,6 +394,22 @@ form.addEventListener("submit", (e) => {
     if (target) {
       socket.emit("adminCommand", { action: "ban", target });
     }
+    input.value = "";
+    return;
+  }
+
+  const kickMatch = text.match(/^\/kick\s+(.+)/i);
+  if (kickMatch) {
+    const target = kickMatch[1].trim();
+    if (target) {
+      socket.emit("adminCommand", { action: "kick", target });
+    }
+    input.value = "";
+    return;
+  }
+
+  if (/^\/kickall$/i.test(text)) {
+    socket.emit("adminCommand", { action: "kickall" });
     input.value = "";
     return;
   }

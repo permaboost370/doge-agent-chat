@@ -46,7 +46,7 @@ function typeWriter(element, text, speed = 15, onComplete) {
 
 // intro
 const introText =
-  `C:\\DOGEOS\\LOBBY> SUBDOMAIN ROOM: ${room}\n` +
+  `C:\\DOGEOS\\LOBBY>\n` +
   `> ASSIGNED CODENAME: ${username}\n` +
   `> ALL TRANSMISSIONS ARE PUBLIC IN THIS ROOM.\n` +
   `> TYPE TO BROADCAST TO OTHER AGENTS.\n`;

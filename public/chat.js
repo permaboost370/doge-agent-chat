@@ -1,8 +1,10 @@
 const form = document.getElementById("chat-form");
 const input = document.getElementById("input");
 const messages = document.getElementById("messages");
+const userListEl = document.getElementById("user-list");
+const userCountEl = document.getElementById("user-count");
 
-// --- generate / remember username per subdomain ---
+// --- generate / remember username per host ---
 function getUsernameForHost() {
   const host = window.location.host;
   const key = `dogeUsername_${host}`;
@@ -21,7 +23,6 @@ const room = window.location.host;
 // --- socket.io connection ---
 const socket = io();
 
-// join the room once connected
 socket.on("connect", () => {
   socket.emit("joinRoom", { room, username });
 });
@@ -44,7 +45,7 @@ function typeWriter(element, text, speed = 15, onComplete) {
   }, speed);
 }
 
-// intro
+// intro text
 const introText =
   `C:\\DOGEOS\\LOBBY>\n` +
   `> ASSIGNED CODENAME: ${username}\n` +
@@ -96,18 +97,35 @@ function addBoxedMessage(text, who = "user", label = "") {
   messages.scrollTop = messages.scrollHeight;
 }
 
-// system messages (join/leave notices)
+// ---- sidebar updates ----
+socket.on("roomUsers", ({ users, count }) => {
+  if (userCountEl) {
+    userCountEl.textContent = count.toString();
+  }
+  if (!userListEl) return;
+
+  userListEl.innerHTML = "";
+
+  users.forEach((u) => {
+    const li = document.createElement("li");
+    li.textContent = u === username ? `${u} (you)` : u;
+    if (u === username) {
+      li.classList.add("user-me");
+    }
+    userListEl.appendChild(li);
+  });
+});
+
+// system messages (join/leave)
 socket.on("systemMessage", ({ text }) => {
   addBoxedMessage(text, "system", "SYS");
 });
 
-// incoming chat messages from any user
+// incoming chat messages
 socket.on("chatMessage", ({ username: fromUser, text, timestamp }) => {
   if (fromUser === username) {
-    // my own message as "YOU"
     addBoxedMessage(text, "user", "YOU");
   } else {
-    // other agents styled as bot (green) with their codename
     addBoxedMessage(text, "bot", fromUser);
   }
 });
@@ -115,8 +133,18 @@ socket.on("chatMessage", ({ username: fromUser, text, timestamp }) => {
 // sending messages
 form.addEventListener("submit", (e) => {
   e.preventDefault();
-  const text = input.value.trim();
+  let text = input.value.trim();
   if (!text) return;
+
+  // ----- SLASH COMMANDS / FILTERS -----
+  if (text === "/x" || text === "/X") {
+    text = "Official X account: https://x.com/muchdogeagent";
+  } else {
+    text = text.replace(
+      /\b\/x\b/gi,
+      "https://x.com/muchdogeagent"
+    );
+  }
 
   socket.emit("chatMessage", { text });
   input.value = "";

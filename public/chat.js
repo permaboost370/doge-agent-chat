@@ -150,8 +150,7 @@ function addBoxedMessage(text, who = "user", label = "") {
   div.className = "msg " + who;
   messages.appendChild(div);
 
-  // wrap message into reasonable width before boxing
-  const MAX_CONTENT_WIDTH = 70; // characters per line of content
+  const MAX_CONTENT_WIDTH = 70;
   const lines = wrapTextLines(text, MAX_CONTENT_WIDTH);
 
   const prefix = label ? `${label}> ` : "";
@@ -204,6 +203,37 @@ socket.on("roomUsers", ({ users, count }) => {
   });
 });
 
+// ---- history replay from server ----
+socket.on("history", ({ entries }) => {
+  if (!Array.isArray(entries)) return;
+
+  // We don't clear current messages, we just append history after intro
+  for (const entry of entries) {
+    const kind = entry.kind;
+    const fromUser = entry.username;
+    const text = entry.text || "";
+
+    if (!text.trim()) continue;
+
+    if (kind === "chat") {
+      if (fromUser === username) {
+        addBoxedMessage(text, "user", "YOU");
+      } else {
+        addBoxedMessage(text, "bot", fromUser || "Agent");
+      }
+    } else if (kind === "system") {
+      addBoxedMessage(text, "system", "SYS");
+    } else if (kind === "agent") {
+      addBoxedMessage(text, "bot", fromUser || "DogeAgent067");
+    }
+  }
+});
+
+// clear history event from server (admin /clearall)
+socket.on("clearHistory", () => {
+  messages.innerHTML = "";
+});
+
 // admin login status
 socket.on("adminStatus", ({ ok, message }) => {
   if (ok) {
@@ -242,6 +272,20 @@ form.addEventListener("submit", (e) => {
   e.preventDefault();
   let text = input.value.trim();
   if (!text) return;
+
+  // ----- /clearall (admin: clears server history + everyone’s screen) -----
+  if (/^\/clearall$/i.test(text)) {
+    socket.emit("adminCommand", { action: "clearHistory" });
+    input.value = "";
+    return;
+  }
+
+  // ----- /clear (local only: clears your screen) -----
+  if (/^\/clear$/i.test(text)) {
+    messages.innerHTML = "";
+    input.value = "";
+    return;
+  }
 
   // ----- /admin secret -----
   const adminMatch = text.match(/^\/admin\s+(.+)/i);
@@ -305,11 +349,9 @@ form.addEventListener("submit", (e) => {
   if (agentMatch) {
     const question = agentMatch[1].trim();
     if (question) {
-      // Show the question as a normal chat message so others see it
       socket.emit("chatMessage", {
         text: `Agent query: ${question}`
       });
-      // Trigger Agent Doge on the server
       socket.emit("agentRequest", { question });
     }
     input.value = "";

@@ -17,7 +17,7 @@ function getUsernameForHost() {
   return username;
 }
 
-const username = getUsernameForHost();
+let username = getUsernameForHost();
 const room = window.location.host;
 
 // --- socket.io connection ---
@@ -27,7 +27,7 @@ socket.on("connect", () => {
   socket.emit("joinRoom", { room, username });
 });
 
-// plain text typewriter (for intro)
+// plain text typewriter (intro)
 function typeWriter(element, text, speed = 15, onComplete) {
   let i = 0;
   element.classList.add("typing");
@@ -45,7 +45,7 @@ function typeWriter(element, text, speed = 15, onComplete) {
   }, speed);
 }
 
-// HTML typewriter (for boxed messages with links)
+// HTML typewriter (boxed messages + links)
 function typeWriterHTML(element, html, speed = 10, onComplete) {
   let i = 0;
   const tempDiv = document.createElement("div");
@@ -82,6 +82,35 @@ function playIntro() {
 
 playIntro();
 
+// AUDIO HELPERS for Agent Doge voice
+function base64ToBlob(base64, mimeType) {
+  if (!base64) return null;
+  const byteCharacters = atob(base64);
+  const byteNumbers = new Array(byteCharacters.length);
+
+  for (let i = 0; i < byteCharacters.length; i++) {
+    byteNumbers[i] = byteCharacters.charCodeAt(i);
+  }
+
+  const byteArray = new Uint8Array(byteNumbers);
+  return new Blob([byteArray], { type: mimeType });
+}
+
+function playReplyAudio(base64, format = "mp3") {
+  if (!base64) return;
+
+  const mime = format === "mp3" ? "audio/mpeg" : `audio/${format}`;
+  const blob = base64ToBlob(base64, mime);
+  if (!blob) return;
+
+  const url = URL.createObjectURL(blob);
+  const audio = new Audio(url);
+
+  audio.play().catch((err) => {
+    console.warn("Agent audio autoplay blocked or failed:", err);
+  });
+}
+
 // render messages in box style with clickable links
 function addBoxedMessage(text, who = "user", label = "") {
   const div = document.createElement("div");
@@ -102,7 +131,6 @@ function addBoxedMessage(text, who = "user", label = "") {
   );
   const border = "+" + "-".repeat(maxLen + 2) + "+";
 
-  // Build HTML with <br> instead of newline
   let boxedHTML =
     border +
     "<br>" +
@@ -115,7 +143,7 @@ function addBoxedMessage(text, who = "user", label = "") {
     "<br>" +
     border;
 
-  // Make URLs clickable
+  // clickable URLs
   boxedHTML = boxedHTML.replace(
     /(https?:\/\/[^\s<]+)/g,
     '<a href="$1" target="_blank" class="chat-link">$1</a>'
@@ -144,12 +172,12 @@ socket.on("roomUsers", ({ users, count }) => {
   });
 });
 
-// system messages (join/leave)
+// system messages (join/leave/nick change)
 socket.on("systemMessage", ({ text }) => {
   addBoxedMessage(text, "system", "SYS");
 });
 
-// incoming chat messages
+// incoming chat messages from humans
 socket.on("chatMessage", ({ username: fromUser, text, timestamp }) => {
   if (fromUser === username) {
     addBoxedMessage(text, "user", "YOU");
@@ -158,14 +186,55 @@ socket.on("chatMessage", ({ username: fromUser, text, timestamp }) => {
   }
 });
 
+// Agent Doge messages
+socket.on(
+  "agentMessage",
+  ({ username: agentName, text, audioBase64, audioFormat }) => {
+    addBoxedMessage(text, "bot", agentName || "DogeAgent067");
+    if (audioBase64) {
+      playReplyAudio(audioBase64, audioFormat || "mp3");
+    }
+  }
+);
+
 // sending messages
 form.addEventListener("submit", (e) => {
   e.preventDefault();
   let text = input.value.trim();
   if (!text) return;
 
-  // ----- SLASH COMMANDS / FILTERS -----
-  // exact commands
+  // ----- /nick newname -----
+  const nickMatch = text.match(/^\/nick\s+(.+)/i);
+  if (nickMatch) {
+    const rawNewName = nickMatch[1].trim();
+    if (rawNewName) {
+      const safe = rawNewName.replace(/\s+/g, "_").slice(0, 24);
+      const host = window.location.host;
+      localStorage.setItem(`dogeUsername_${host}`, safe);
+      username = safe;
+      socket.emit("changeNick", { newName: safe });
+    }
+    input.value = "";
+    return;
+  }
+
+  // ----- /agent question -----
+  const agentMatch = text.match(/^\/agent\s+(.+)/i);
+  if (agentMatch) {
+    const question = agentMatch[1].trim();
+    if (question) {
+      // Show the question as a normal chat message so others see it
+      socket.emit("chatMessage", {
+        text: `Agent query: ${question}`
+      });
+      // Trigger Agent Doge on the server
+      socket.emit("agentRequest", { question });
+    }
+    input.value = "";
+    return;
+  }
+
+  // ----- SLASH COMMANDS / FILTERS (links) -----
   if (/^\/x$/i.test(text)) {
     text = "Official X account: https://x.com/muchdogeagent";
   } else if (/^\/website$/i.test(text)) {
@@ -182,6 +251,7 @@ form.addEventListener("submit", (e) => {
     );
   }
 
+  // send normal message
   socket.emit("chatMessage", { text });
   input.value = "";
 });

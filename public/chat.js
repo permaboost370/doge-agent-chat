@@ -4,6 +4,8 @@ const messages = document.getElementById("messages");
 const userListEl = document.getElementById("user-list");
 const userCountEl = document.getElementById("user-count");
 
+let isAdmin = false;
+
 // --- generate / remember username per host ---
 function getUsernameForHost() {
   const host = window.location.host;
@@ -172,7 +174,15 @@ socket.on("roomUsers", ({ users, count }) => {
   });
 });
 
-// system messages (join/leave/nick change)
+// admin login status
+socket.on("adminStatus", ({ ok, message }) => {
+  if (ok) {
+    isAdmin = true;
+  }
+  addBoxedMessage(message || "Admin status changed.", "system", "SYS");
+});
+
+// system messages (join/leave/nick change etc.)
 socket.on("systemMessage", ({ text }) => {
   addBoxedMessage(text, "system", "SYS");
 });
@@ -203,6 +213,17 @@ form.addEventListener("submit", (e) => {
   let text = input.value.trim();
   if (!text) return;
 
+  // ----- /admin secret -----
+  const adminMatch = text.match(/^\/admin\s+(.+)/i);
+  if (adminMatch) {
+    const pwd = adminMatch[1].trim();
+    if (pwd) {
+      socket.emit("adminLogin", { password: pwd });
+    }
+    input.value = "";
+    return;
+  }
+
   // ----- /nick newname -----
   const nickMatch = text.match(/^\/nick\s+(.+)/i);
   if (nickMatch) {
@@ -213,6 +234,37 @@ form.addEventListener("submit", (e) => {
       localStorage.setItem(`dogeUsername_${host}`, safe);
       username = safe;
       socket.emit("changeNick", { newName: safe });
+    }
+    input.value = "";
+    return;
+  }
+
+  // ----- Admin moderation: /mute, /unmute, /ban -----
+  const muteMatch = text.match(/^\/mute\s+(.+)/i);
+  if (muteMatch) {
+    const target = muteMatch[1].trim();
+    if (target) {
+      socket.emit("adminCommand", { action: "mute", target });
+    }
+    input.value = "";
+    return;
+  }
+
+  const unmuteMatch = text.match(/^\/unmute\s+(.+)/i);
+  if (unmuteMatch) {
+    const target = unmuteMatch[1].trim();
+    if (target) {
+      socket.emit("adminCommand", { action: "unmute", target });
+    }
+    input.value = "";
+    return;
+  }
+
+  const banMatch = text.match(/^\/ban\s+(.+)/i);
+  if (banMatch) {
+    const target = banMatch[1].trim();
+    if (target) {
+      socket.emit("adminCommand", { action: "ban", target });
     }
     input.value = "";
     return;

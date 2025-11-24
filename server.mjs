@@ -109,15 +109,18 @@ async function synthesizeWithElevenLabs(text) {
   return buffer.toString("base64");
 }
 
-// ---------- Room user / mute / ban tracking ----------
+// ---------- Room user / mute / ban / history tracking ----------
 /**
- * roomUsers: Map<room, Map<socketId, username>>
- * roomMutes: Map<room, Set<socketId>>
- * roomBans:  Map<room, Set<username>>
+ * roomUsers:   Map<room, Map<socketId, username>>
+ * roomMutes:   Map<room, Set<socketId>>
+ * roomBans:    Map<room, Set<username>>
+ * roomHistory: Map<room, Array<{kind, username, text, timestamp}>>
  */
 const roomUsers = new Map();
 const roomMutes = new Map();
 const roomBans = new Map();
+const roomHistory = new Map();
+const MAX_HISTORY_PER_ROOM = 200;
 
 function getRoomSet(map, room) {
   let set = map.get(room);
@@ -128,12 +131,36 @@ function getRoomSet(map, room) {
   return set;
 }
 
+function addHistory(room, entry) {
+  let list = roomHistory.get(room);
+  if (!list) {
+    list = [];
+    roomHistory.set(room, list);
+  }
+  list.push(entry);
+  if (list.length > MAX_HISTORY_PER_ROOM) {
+    list.shift();
+  }
+}
+
 function updateRoomUsers(room) {
   const usersMap = roomUsers.get(room) || new Map();
   const users = Array.from(usersMap.values());
   io.to(room).emit("roomUsers", {
     users,
     count: users.length
+  });
+}
+
+// helper to broadcast a system message + store in history
+function emitSystem(room, text) {
+  const ts = Date.now();
+  io.to(room).emit("systemMessage", { text });
+  addHistory(room, {
+    kind: "system",
+    username: null,
+    text,
+    timestamp: ts
   });
 }
 
@@ -167,10 +194,12 @@ io.on("connection", (socket) => {
 
     console.log(`Socket ${socket.id} joined room=${room} as ${username}`);
 
-    socket.to(room).emit("systemMessage", {
-      text: `${username} has joined the mission.`
-    });
+    // send history to this user only
+    const history = roomHistory.get(room) || [];
+    socket.emit("history", { entries: history });
 
+    // then announce join
+    emitSystem(room, `${username} has joined the mission.`);
     updateRoomUsers(room);
   });
 
@@ -198,7 +227,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Admin actions: mute / unmute / ban
+  // Admin actions: mute / unmute / ban / clearHistory
   socket.on("adminCommand", ({ action, target }) => {
     const room = socket.data.room;
     if (!room || !socket.data.isAdmin) {
@@ -209,14 +238,12 @@ io.on("connection", (socket) => {
     }
 
     const targetName = (target || "").trim();
-    if (!targetName) return;
-
     const usersMap = roomUsers.get(room) || new Map();
 
     switch (action) {
       case "mute": {
+        if (!targetName) return;
         const mutes = getRoomSet(roomMutes, room);
-        // mute all sockets with that username in this room
         for (const [sid, uname] of usersMap.entries()) {
           if (uname === targetName) {
             mutes.add(sid);
@@ -228,12 +255,11 @@ io.on("connection", (socket) => {
             }
           }
         }
-        io.to(room).emit("systemMessage", {
-          text: `${targetName} has been muted by command.`
-        });
+        emitSystem(room, `${targetName} has been muted by command.`);
         break;
       }
       case "unmute": {
+        if (!targetName) return;
         const mutes = roomMutes.get(room);
         if (mutes) {
           for (const [sid, uname] of usersMap.entries()) {
@@ -248,16 +274,14 @@ io.on("connection", (socket) => {
             }
           }
         }
-        io.to(room).emit("systemMessage", {
-          text: `${targetName} has been unmuted.`
-        });
+        emitSystem(room, `${targetName} has been unmuted.`);
         break;
       }
       case "ban": {
+        if (!targetName) return;
         const bans = getRoomSet(roomBans, room);
         bans.add(targetName);
 
-        // Disconnect all sockets with that username in this room
         for (const [sid, uname] of usersMap.entries()) {
           if (uname === targetName) {
             const s = io.sockets.sockets.get(sid);
@@ -270,9 +294,14 @@ io.on("connection", (socket) => {
           }
         }
 
-        io.to(room).emit("systemMessage", {
-          text: `${targetName} has been banned from this room.`
-        });
+        emitSystem(room, `${targetName} has been banned from this room.`);
+        break;
+      }
+      case "clearHistory": {
+        // clear server history and tell clients to wipe screen
+        roomHistory.set(room, []);
+        io.to(room).emit("clearHistory");
+        emitSystem(room, "History cleared by command.");
         break;
       }
       default: {
@@ -302,14 +331,11 @@ io.on("connection", (socket) => {
       usersMap.set(socket.id, safe);
     }
 
-    io.to(room).emit("systemMessage", {
-      text: `${oldName} is now known as ${safe}.`
-    });
-
+    emitSystem(room, `${oldName} is now known as ${safe}.`);
     updateRoomUsers(room);
   });
 
-  // Normal chat messages (check mute)
+  // Normal chat messages (check mute) + store history
   socket.on("chatMessage", ({ text }) => {
     const room = socket.data.room;
     const username = socket.data.username || "unknown";
@@ -331,6 +357,12 @@ io.on("connection", (socket) => {
     };
 
     io.to(room).emit("chatMessage", payload);
+    addHistory(room, {
+      kind: "chat",
+      username,
+      text: payload.text,
+      timestamp: payload.timestamp
+    });
   });
 
   // Agent Doge request: /agent question
@@ -377,11 +409,20 @@ io.on("connection", (socket) => {
         console.error("Agent TTS error:", err);
       }
 
+      const ts = Date.now();
+
       io.to(room).emit("agentMessage", {
         username: "DogeAgent067",
         text: reply,
         audioBase64,
         audioFormat
+      });
+
+      addHistory(room, {
+        kind: "agent",
+        username: "DogeAgent067",
+        text: reply,
+        timestamp: ts
       });
     } catch (err) {
       console.error("Agent Doge error:", err);
@@ -406,9 +447,7 @@ io.on("connection", (socket) => {
     }
 
     if (room && username) {
-      socket.to(room).emit("systemMessage", {
-        text: `${username} has left the mission.`
-      });
+      emitSystem(room, `${username} has left the mission.`);
     }
 
     console.log("Client disconnected", socket.id);

@@ -7,6 +7,7 @@
   </head>
   <body>
     <div id="app">
+      <!-- LEFT SIDEBAR: ACTIVE AGENTS -->
       <aside id="sidebar">
         <div class="sidebar-header">
           <div class="room-title">DOGE LOBBY</div>
@@ -17,6 +18,7 @@
         <ul id="user-list"></ul>
       </aside>
 
+      <!-- MAIN TERMINAL -->
       <div id="terminal">
         <!-- Codename setup bar -->
         <div id="codename-setup">
@@ -42,24 +44,26 @@
           <span id="pinned-text" class="pinned-text"></span>
         </div>
 
+        <!-- Messages -->
         <div id="messages" class="messages"></div>
 
+        <!-- Chat input + image upload -->
         <form id="chat-form" enctype="multipart/form-data">
-  <div id="input-row">
-    <input
-      id="input"
-      type="text"
-      autocomplete="off"
-      placeholder="set codename above to start..."
-    />
-    <input
-      id="image-input"
-      type="file"
-      accept="image/*"
-      title="Send image"
-    />
-  </div>
-</form>
+          <div id="input-row">
+            <input
+              id="input"
+              type="text"
+              autocomplete="off"
+              placeholder="set codename above to start..."
+            />
+            <input
+              id="image-input"
+              type="file"
+              accept="image/*"
+              title="Send image"
+            />
+          </div>
+        </form>
       </div>
     </div>
 

@@ -437,7 +437,7 @@ if (codenameForm) {
   });
 }
 
-// ---------- Image upload handler ----------
+// ---------- Image upload handler (50% resize) ----------
 
 if (imageInput) {
   imageInput.addEventListener("change", function (e) {
@@ -462,21 +462,34 @@ if (imageInput) {
     }
 
     const reader = new FileReader();
-    reader.onload = function () {
-      const result = reader.result || "";
-      const str = String(result);
-      const prefix = "base64,";
-      const idx = str.indexOf(prefix);
-      if (idx === -1) {
+    reader.onload = function (event) {
+      const img = new Image();
+      img.onload = function () {
+        // Resize to 50%
+        const canvas = document.createElement("canvas");
+        const ctx = canvas.getContext("2d");
+
+        const newWidth = img.width * 0.5;
+        const newHeight = img.height * 0.5;
+
+        canvas.width = newWidth;
+        canvas.height = newHeight;
+
+        ctx.drawImage(img, 0, 0, newWidth, newHeight);
+
+        // Convert resized canvas to Base64
+        const resizedBase64 = canvas
+          .toDataURL(file.type, 0.9) // slight compression too
+          .split(",")[1];
+
+        socket.emit("imageMessage", {
+          imageBase64: resizedBase64,
+          mimeType: file.type
+        });
+
         imageInput.value = "";
-        return;
-      }
-      const base64 = str.slice(idx + prefix.length);
-      socket.emit("imageMessage", {
-        imageBase64: base64,
-        mimeType: file.type
-      });
-      imageInput.value = "";
+      };
+      img.src = event.target.result;
     };
     reader.readAsDataURL(file);
   });

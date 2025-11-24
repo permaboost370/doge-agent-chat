@@ -1,0 +1,86 @@
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 0;
+  background: #000;
+  color: #00ff00;
+  font-family: "Fira Code", "Courier New", monospace;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 100vh;
+}
+
+#terminal {
+  width: 100%;
+  max-width: 800px;
+  height: 80vh;
+  border: 2px solid #00ff00;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  background: #000;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  padding-right: 4px;
+}
+
+.msg {
+  margin-bottom: 8px;
+}
+
+.msg.user {
+  color: #ffffff;
+}
+
+.msg.bot {
+  color: #00ff00;
+}
+
+.msg.system {
+  color: #888888;
+}
+
+/* blinking cursor effect for typewriter */
+.typing {
+  border-right: 2px solid #00ff00;
+  animation: blink 0.8s steps(1) infinite;
+}
+
+@keyframes blink {
+  0% {
+    border-color: #00ff00;
+  }
+  50% {
+    border-color: transparent;
+  }
+  100% {
+    border-color: #00ff00;
+  }
+}
+
+#chat-form {
+  margin-top: 8px;
+}
+
+#input {
+  width: 100%;
+  padding: 8px;
+  background: #000;
+  border: 1px solid #00ff00;
+  color: #00ff00;
+  font-family: inherit;
+  font-size: 14px;
+  outline: none;
+}
+
+#input::placeholder {
+  color: #007700;
+}

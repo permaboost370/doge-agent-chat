@@ -127,6 +127,32 @@ body {
   color: #007700;
 }
 
+/* Pinned bar */
+.pinned-bar {
+  margin-bottom: 6px;
+  padding: 4px 6px;
+  border: 1px solid #00ff00;
+  background: #000000;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+}
+
+.pinned-label {
+  font-weight: bold;
+  color: #00ff00;
+  white-space: nowrap;
+}
+
+.pinned-text {
+  color: #00ff00;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Messages */
 .messages {
   flex: 1;
   overflow-y: auto;
@@ -224,5 +250,9 @@ body {
 
   #user-list li {
     margin-right: 8px;
+  }
+
+  .pinned-text {
+    white-space: normal;
   }
 }

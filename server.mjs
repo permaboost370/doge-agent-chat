@@ -20,9 +20,9 @@ app.use(express.static(path.join(__dirname, "public")));
 const httpServer = http.createServer(app);
 const io = new SocketIOServer(httpServer, {
   cors: { origin: "*" },
-  // Make disconnects less aggressive when tab is backgrounded / mobile sleeps
-  pingTimeout: 60000,   // 60s to consider the client dead
-  pingInterval: 25000,  // send pings every 25s
+  // Less aggressive disconnects when tabs are backgrounded
+  pingTimeout: 60000,   // 60s
+  pingInterval: 25000,  // 25s
 });
 
 // ---------- OpenAI (for Agent Doge) ----------
@@ -229,7 +229,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Admin actions: mute / unmute / ban / clearHistory
+  // Admin actions: mute / unmute / ban / kick / kickall / clearHistory
   socket.on("adminCommand", ({ action, target }) => {
     const room = socket.data.room;
     if (!room || !socket.data.isAdmin) {
@@ -297,6 +297,37 @@ io.on("connection", (socket) => {
         }
 
         emitSystem(room, `${targetName} has been banned from this room.`);
+        break;
+      }
+      case "kick": {
+        if (!targetName) return;
+        for (const [sid, uname] of usersMap.entries()) {
+          if (uname === targetName) {
+            const s = io.sockets.sockets.get(sid);
+            if (s) {
+              s.emit("systemMessage", {
+                text: "You have been kicked from this room."
+              });
+              s.disconnect(true);
+            }
+          }
+        }
+        emitSystem(room, `${targetName} has been kicked from the room.`);
+        break;
+      }
+      case "kickall": {
+        const adminSid = socket.id;
+        for (const [sid, uname] of usersMap.entries()) {
+          if (sid === adminSid) continue; // do not kick yourself
+          const s = io.sockets.sockets.get(sid);
+          if (s) {
+            s.emit("systemMessage", {
+              text: "You have been kicked from this room by command."
+            });
+            s.disconnect(true);
+          }
+        }
+        emitSystem(room, "All agents have been kicked from the room.");
         break;
       }
       case "clearHistory": {
@@ -436,7 +467,6 @@ io.on("connection", (socket) => {
 
   socket.on("disconnect", () => {
     const room = socket.data.room;
-    const username = socket.data.username;
 
     if (room && roomUsers.has(room)) {
       const usersMap = roomUsers.get(room);

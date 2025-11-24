@@ -112,17 +112,19 @@ async function synthesizeWithElevenLabs(text) {
   return buffer.toString("base64");
 }
 
-// ---------- Room user / mute / ban / history tracking ----------
+// ---------- Room user / mute / ban / history / pin tracking ----------
 /**
  * roomUsers:   Map<room, Map<socketId, username>>
  * roomMutes:   Map<room, Set<socketId>>
  * roomBans:    Map<room, Set<username>>
  * roomHistory: Map<room, Array<{kind, username, text, timestamp}>>
+ * roomPins:    Map<room, { text, by, timestamp }>
  */
 const roomUsers = new Map();
 const roomMutes = new Map();
 const roomBans = new Map();
 const roomHistory = new Map();
+const roomPins = new Map();
 const MAX_HISTORY_PER_ROOM = 200;
 
 function getRoomSet(map, room) {
@@ -201,6 +203,12 @@ io.on("connection", (socket) => {
     const history = roomHistory.get(room) || [];
     socket.emit("history", { entries: history });
 
+    // send current pinned message (if any)
+    const pinInfo = roomPins.get(room);
+    if (pinInfo) {
+      socket.emit("pinUpdate", pinInfo);
+    }
+
     // no join system message
     updateRoomUsers(room);
   });
@@ -229,7 +237,7 @@ io.on("connection", (socket) => {
     }
   });
 
-  // Admin actions: mute / unmute / ban / kick / kickall / clearHistory
+  // Admin actions: mute / unmute / ban / kick / kickall / pin / unpin / clearHistory
   socket.on("adminCommand", ({ action, target }) => {
     const room = socket.data.room;
     if (!room || !socket.data.isAdmin) {
@@ -239,15 +247,16 @@ io.on("connection", (socket) => {
       return;
     }
 
-    const targetName = (target || "").trim();
     const usersMap = roomUsers.get(room) || new Map();
+    const adminName = socket.data.username || "Admin";
+    const targetStr = (target || "").trim();
 
     switch (action) {
       case "mute": {
-        if (!targetName) return;
+        if (!targetStr) return;
         const mutes = getRoomSet(roomMutes, room);
         for (const [sid, uname] of usersMap.entries()) {
-          if (uname === targetName) {
+          if (uname === targetStr) {
             mutes.add(sid);
             const s = io.sockets.sockets.get(sid);
             if (s) {
@@ -257,15 +266,15 @@ io.on("connection", (socket) => {
             }
           }
         }
-        emitSystem(room, `${targetName} has been muted by command.`);
+        emitSystem(room, `${targetStr} has been muted by command.`);
         break;
       }
       case "unmute": {
-        if (!targetName) return;
+        if (!targetStr) return;
         const mutes = roomMutes.get(room);
         if (mutes) {
           for (const [sid, uname] of usersMap.entries()) {
-            if (uname === targetName) {
+            if (uname === targetStr) {
               mutes.delete(sid);
               const s = io.sockets.sockets.get(sid);
               if (s) {
@@ -276,16 +285,16 @@ io.on("connection", (socket) => {
             }
           }
         }
-        emitSystem(room, `${targetName} has been unmuted.`);
+        emitSystem(room, `${targetStr} has been unmuted.`);
         break;
       }
       case "ban": {
-        if (!targetName) return;
+        if (!targetStr) return;
         const bans = getRoomSet(roomBans, room);
-        bans.add(targetName);
+        bans.add(targetStr);
 
         for (const [sid, uname] of usersMap.entries()) {
-          if (uname === targetName) {
+          if (uname === targetStr) {
             const s = io.sockets.sockets.get(sid);
             if (s) {
               s.emit("systemMessage", {
@@ -296,13 +305,13 @@ io.on("connection", (socket) => {
           }
         }
 
-        emitSystem(room, `${targetName} has been banned from this room.`);
+        emitSystem(room, `${targetStr} has been banned from this room.`);
         break;
       }
       case "kick": {
-        if (!targetName) return;
+        if (!targetStr) return;
         for (const [sid, uname] of usersMap.entries()) {
-          if (uname === targetName) {
+          if (uname === targetStr) {
             const s = io.sockets.sockets.get(sid);
             if (s) {
               s.emit("systemMessage", {
@@ -312,7 +321,7 @@ io.on("connection", (socket) => {
             }
           }
         }
-        emitSystem(room, `${targetName} has been kicked from the room.`);
+        emitSystem(room, `${targetStr} has been kicked from the room.`);
         break;
       }
       case "kickall": {
@@ -328,6 +337,24 @@ io.on("connection", (socket) => {
           }
         }
         emitSystem(room, "All agents have been kicked from the room.");
+        break;
+      }
+      case "pin": {
+        if (!targetStr) return;
+        const pinInfo = {
+          text: targetStr,
+          by: adminName,
+          timestamp: Date.now()
+        };
+        roomPins.set(room, pinInfo);
+        io.to(room).emit("pinUpdate", pinInfo);
+        emitSystem(room, `Pinned message updated by ${adminName}.`);
+        break;
+      }
+      case "unpin": {
+        roomPins.delete(room);
+        io.to(room).emit("pinUpdate", { text: null });
+        emitSystem(room, `Pinned message cleared by ${adminName}.`);
         break;
       }
       case "clearHistory": {

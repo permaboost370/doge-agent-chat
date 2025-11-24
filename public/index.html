@@ -44,14 +44,22 @@
 
         <div id="messages" class="messages"></div>
 
-        <form id="chat-form">
-          <input
-            id="input"
-            type="text"
-            autocomplete="off"
-            placeholder="set codename above to start..."
-          />
-        </form>
+        <form id="chat-form" enctype="multipart/form-data">
+  <div id="input-row">
+    <input
+      id="input"
+      type="text"
+      autocomplete="off"
+      placeholder="set codename above to start..."
+    />
+    <input
+      id="image-input"
+      type="file"
+      accept="image/*"
+      title="Send image"
+    />
+  </div>
+</form>
       </div>
     </div>
 

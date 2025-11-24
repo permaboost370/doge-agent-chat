@@ -198,8 +198,7 @@ io.on("connection", (socket) => {
     const history = roomHistory.get(room) || [];
     socket.emit("history", { entries: history });
 
-    // then announce join
-    emitSystem(room, `${username} has joined the mission.`);
+    // no join system message
     updateRoomUsers(room);
   });
 
@@ -446,10 +445,7 @@ io.on("connection", (socket) => {
       }
     }
 
-    if (room && username) {
-      emitSystem(room, `${username} has left the mission.`);
-    }
-
+    // no leave system message
     console.log("Client disconnected", socket.id);
   });
 });
